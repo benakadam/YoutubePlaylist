@@ -23,8 +23,8 @@ public class PlaylistManager
         Directory.CreateDirectory(_savePath);
         //var clientSecrets = new ClientSecrets
         //{
-        //    ClientId = "874856284528-7p4bpsr36r66223m91uapi1qmlnab7rm.apps.googleusercontent.com",
-        //    ClientSecret = "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"
+        //    ClientId = "",
+        //    ClientSecret = ""
         //};
 
         //// OAuth 2.0 hitelesítés
