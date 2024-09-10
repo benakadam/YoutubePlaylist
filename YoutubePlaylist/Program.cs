@@ -16,6 +16,7 @@ public class YoutubePlaylist
     private readonly IDataAccess _dataAccess;
     private const string DOWNLOAD = "Download";
     private readonly string _downloadPath;
+    private readonly Regex _titleRegex;
     #endregion
 
     public YoutubePlaylist()
@@ -24,6 +25,7 @@ public class YoutubePlaylist
         _playlistManager = new(_dataAccess);
         _downloadPath = Helper.GetConfigValue("DownloadPath");
         _downloadManager = new(_downloadPath);
+        _titleRegex = new Regex(@"[^a-zA-Z0-9 ]");
     }
 
     [STAThread]
@@ -69,7 +71,8 @@ public class YoutubePlaylist
 
             if (downloadIDs.Any())
             {
-                DownloadVideos(downloadIDs, downloadVideos);
+                HashSet<string> titles = new HashSet<string>(downloadVideos.Select(x => _titleRegex.Replace(x, "")));
+                DownloadVideos(downloadIDs, titles);
                 return;
             }
             if (!Directory.EnumerateFileSystemEntries(_downloadPath).Any())
@@ -127,25 +130,20 @@ public class YoutubePlaylist
         }
     }
 
-    private void DownloadVideos(List<string> downloadIDs, List<string> titles)
+    private void DownloadVideos(List<string> downloadIDs, HashSet<string> titles)
     {
         Console.WriteLine("Letöltés");
         string baseUrl = Helper.GetConfigValue("VideoBaseUrl");
         downloadIDs.ForEach(id => _downloadManager.DownloadWebmAudio(baseUrl + id));
 
-        List<string> files;
-        List<string> titlesmp3 = titles.Select(x => $"{x}.mp3").ToList();
         while (true)
         {
-            files = Directory.GetFiles(_downloadPath).Select(x => Path.GetFileName(x)).ToList();
-
-            if (files.All(file => Path.GetExtension(file).Equals(".mp3", StringComparison.OrdinalIgnoreCase))
-                && titlesmp3.All(title => files.Contains(title)))
+            if (IsDownloadFinished(titles))
             {
                 Console.WriteLine($"\nA letöltés elkészült Mester!");
                 break;
             }
-
+            
             Console.SetCursorPosition(0, Console.CursorTop);
             Console.Write(new string(' ', Console.WindowWidth - 1));
             Console.SetCursorPosition(0, Console.CursorTop); Thread.Sleep(300);
@@ -159,9 +157,33 @@ public class YoutubePlaylist
         RenameFiles(titles);
     }
 
-    private void RenameFiles(List<string> titles)
+    private bool IsDownloadFinished(HashSet<string> titles)
     {
-        var files = Directory.GetFiles(_downloadPath).Select(x => Path.GetFileNameWithoutExtension(x)).Where(y => titles.Contains(y)).ToList();
+        bool isFinished = false;
+
+        foreach (var filePath in Directory.EnumerateFiles(_downloadPath))
+        {
+            isFinished = true;
+            if (!Path.GetExtension(filePath).Equals(".mp3", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!titles.Contains(_titleRegex.Replace(Path.GetFileNameWithoutExtension(filePath), "")))
+            {
+                return false;
+            }
+        }
+        return isFinished;
+    }
+
+    private void RenameFiles(HashSet<string> titles)
+    {
+        var files = Directory.GetFiles(_downloadPath)
+            .Select(x => Path.GetFileNameWithoutExtension(x))
+            .Where(y => titles.Contains(_titleRegex.Replace(y ,"")))
+            .ToList();
+
         foreach (string file in files)
         {
             string newFileName = DirectoryManager.ReadInputWithDefault(file);
