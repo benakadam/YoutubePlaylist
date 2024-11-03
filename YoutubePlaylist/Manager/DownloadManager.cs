@@ -14,16 +14,27 @@ public class DownloadManager
         Directory.CreateDirectory(downloadPath);
     }
 
-
-    public Process DownloadWebmAudio(string url)
+    public async Task DownloadWebmAudioAsync(string url)
     {
         string projectRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\"));
-
         string exePath = Path.Combine(projectRoot, "Thirdparty", "yt-dlp.exe");
 
-        return InitProcess(exePath,
-            $@" -f bestaudio  --extract-audio --audio-format mp3 --audio-quality 0 {url} -o {_downloadPath}\%(title)s.%(ext)s");
+        var process = InitProcess(exePath,
+            $@" -f bestaudio --extract-audio --audio-format mp3 --audio-quality 0 {url} -o {_downloadPath}\%(title)s.%(ext)s");
+
+        process.EnableRaisingEvents = true;
+
+        var tcs = new TaskCompletionSource<bool>();
+        process.Exited += (sender, args) =>
+        {
+            tcs.SetResult(true); 
+            process.Dispose();
+        };
+
+        process.Start();
+        await tcs.Task; 
     }
+
 
 
     private Process InitProcess(string fileName, string args)
