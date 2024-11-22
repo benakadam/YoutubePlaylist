@@ -66,9 +66,7 @@ public class PlaylistManager
             playlistItemsRequest.PageToken = playlistItemResponse.NextPageToken;
             playlistItemResponse = playlistItemsRequest.Execute();
 
-            playlistItemResponse.Items.ToList().ForEach(
-                    x => playlistItems.Add(
-                        id ? x.Snippet.ResourceId.VideoId : x.Snippet.Title));
+            playlistItems.AddRange(playlistItemResponse.Items.Select(x => id ? x.Snippet.ResourceId.VideoId : x.Snippet.Title));
         }
         while (playlistItemResponse?.NextPageToken != null);
 
