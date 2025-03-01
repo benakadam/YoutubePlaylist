@@ -1,5 +1,5 @@
 ﻿namespace YoutubePlaylist.Manager;
-public class DirectoryManager
+public class ConsoleManager
 {
 
     public static string ReadInputWithDefault(string defaultValue, string caret = "> ")

@@ -71,13 +71,8 @@ public class YoutubePlaylist
 
             OpenAffectedPlaylistsInBrowser(deletedVideos.Take(index));
 
-            if (downloadIDs.Any())
-            {
-                await DownloadVideos(downloadIDs, downloadVideos);
-                return;
-            }
-            if (!Directory.EnumerateFileSystemEntries(_downloadPath).Any())
-                Directory.Delete(_downloadPath);
+            if (!downloadIDs.Any()) return;          
+            await DownloadVideos(downloadIDs, downloadVideos);
         }
         catch (AggregateException ex)
         {
@@ -163,6 +158,7 @@ public class YoutubePlaylist
     private async Task DownloadVideos(List<string> downloadIDs, List<string> titles)
     {
         Console.WriteLine("Letöltés");
+        Directory.CreateDirectory(_downloadPath);
         string baseUrl = Helper.GetConfigValue("VideoBaseUrl");
 
         var downloadTasks = downloadIDs.Select(id => _downloadManager.DownloadWebmAudioAsync(baseUrl + id)).ToList();
@@ -199,7 +195,7 @@ public class YoutubePlaylist
 
         foreach (string file in files)
         {
-            string newFileName = DirectoryManager.ReadInputWithDefault(file);
+            string newFileName = ConsoleManager.ReadInputWithDefault(file);
             if (newFileName == file) continue;
 
             string destinationPath = Path.Combine(_downloadPath, newFileName + ".mp3");

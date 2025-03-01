@@ -8,33 +8,32 @@ public class DownloadManager
 
     private readonly FFMpegConverter _converter = new FFMpegConverter();
 
-    public DownloadManager(string downloadPath)
-    {
-        _downloadPath = downloadPath;
-        Directory.CreateDirectory(downloadPath);
-    }
+    public DownloadManager(string downloadPath) => _downloadPath = downloadPath;
 
     public async Task DownloadWebmAudioAsync(string url)
     {
         string projectRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\"));
         string exePath = Path.Combine(projectRoot, "Thirdparty", "yt-dlp.exe");
 
+        //var updateProcess = InitProcess(exePath, "-U"); //Ez frissíti a letöltő programot ha nem működne
+        //updateProcess.Start();
+        //updateProcess.WaitForExit();
+
         var process = InitProcess(exePath,
-            $@" -f bestaudio --extract-audio --audio-format mp3 --audio-quality 0 {url} -o {_downloadPath}\%(title)s.%(ext)s");
+            $" -f bestaudio --extract-audio --audio-format mp3 --audio-quality 0 {url} -o {_downloadPath}\\%(title)s.%(ext)s");
 
         process.EnableRaisingEvents = true;
 
         var tcs = new TaskCompletionSource<bool>();
         process.Exited += (sender, args) =>
         {
-            tcs.SetResult(true); 
+            tcs.SetResult(true);
             process.Dispose();
         };
 
         process.Start();
-        await tcs.Task; 
+        await tcs.Task;
     }
-
 
 
     private Process InitProcess(string fileName, string args)
