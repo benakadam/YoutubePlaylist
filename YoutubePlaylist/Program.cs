@@ -82,7 +82,7 @@ public class YoutubePlaylist
             }
         }
 
-        Console.WriteLine("\nKész vagyok Mester!");
+        Console.WriteLine("\nKész vagyunk Mester!");
         Console.ReadKey();
     }
 
@@ -163,7 +163,7 @@ public class YoutubePlaylist
 
         var downloadTasks = downloadIDs.Select(id => _downloadManager.DownloadWebmAudioAsync(baseUrl + id)).ToList();
 
-        var progressTask = Task.Run(async () =>
+        var progressTask = Task.Run(() =>
         {
             while (!downloadTasks.All(t => t.IsCompleted))
             {
@@ -183,12 +183,11 @@ public class YoutubePlaylist
         await progressTask;
 
         Console.WriteLine($"\nA letöltés elkészült Mester!");
-        var files = RenameFiles(titles);
-        CheckForUnsuccesfulDownloads(titles, files);
+        CheckForUnsuccesfulDownloads(titles, RenameFiles());
     }
 
 
-    private IEnumerable<string> RenameFiles(List<string> titles)
+    private IEnumerable<string> RenameFiles()
     {
         var files = Directory.GetFiles(_downloadPath)
             .Select(x => Path.GetFileNameWithoutExtension(x));
