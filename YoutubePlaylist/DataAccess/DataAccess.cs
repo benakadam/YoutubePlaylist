@@ -8,9 +8,11 @@ namespace YoutubePlaylist.DataAccess;
 
 public class DataAccess : IDataAccess
 {
-    public DataAccess()
+    private readonly IDateTimeProvider _dateTimeProvider;
+
+    public DataAccess(IDateTimeProvider dateTimeProvider)
     {
-        TruncateTable("DELETED");
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public List<string> GetPlaylistItems(string playlistName)
@@ -66,18 +68,20 @@ public class DataAccess : IDataAccess
             var parameters = playlistItems.Select(item => new
             {
                 Playlist = playlist,
-                PlaylistItem = item
+                PlaylistItem = item,
+                DeletedAt = _dateTimeProvider.Now,
             }).ToArray();
 
-            connection.Execute($"INSERT INTO DELETED(Playlist, Title) VALUES(@Playlist, @PlaylistItem)", parameters);
+            connection.Execute($"INSERT INTO DELETED(Playlist, Title, DeletedAt) VALUES(@Playlist, @PlaylistItem, @DeletedAt)", parameters);
         });
     }
 
-    public List<Deleted> GetDeleted()
+    public List<Deleted> GetLatestDeleted()
     {
         return DbHelper.ExecuteWithConnection(connection =>
         {
-            return connection.Query<Deleted>($"SELECT * FROM DELETED").ToList();
+            return connection.Query<Deleted>($"SELECT * FROM DELETED WHERE DeletedAt = @DeletedAt",
+                new { DeletedAt = _dateTimeProvider.Now }).ToList();
         });
     }
 

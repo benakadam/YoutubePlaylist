@@ -13,7 +13,7 @@ public interface IDataAccess
 
     public void InsertDeleted(string playlist, List<string> playlistItems);
 
-    public List<Deleted> GetDeleted();
+    public List<Deleted> GetLatestDeleted();
 
     public void TruncateTable(string tableName);
 }

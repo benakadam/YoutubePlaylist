@@ -53,7 +53,7 @@ public class PlaylistManager
 
     public List<string> GetPlaylistItems(string playlistId, bool id = false)
     {
-        List<string> playlistItems = new List<string>();
+        List<string> playlistItems = [];
 
         var playlistItemsRequest = _youtubeService.PlaylistItems.List("snippet");
 
@@ -80,22 +80,13 @@ public class PlaylistManager
 
         var diffTitles = oldTitles.Except(newTitles).ToList();
         if (downloadPlaylist != null)
-            diffTitles = diffTitles.Except(downloadPlaylist).ToList();
+            diffTitles = [.. diffTitles.Except(downloadPlaylist)];
 
         diffTitles.RemoveAll(x => x == "Deleted video");
-        if (diffTitles.Any())
+        if (diffTitles.Count != 0)
             _dataAccess.InsertDeleted(playlistTitle, diffTitles);
 
         _dataAccess.TruncateTable(playlistTitle);
         _dataAccess.InsertPlaylistItems(playlistTitle, newTitles);
-    }
-
-    private string RemoveTextInBrackets(string input)
-    {
-        string pattern = @"\[[^\]]*\]|\([^)]*\)";
-
-        string result = Regex.Replace(input, pattern, "");
-
-        return result.Trim();
     }
 }

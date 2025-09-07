@@ -1,14 +1,16 @@
 ﻿using Google.Apis.YouTube.v3.Data;
+using System.Diagnostics;
+using System.Text.Json;
 using System.Text.RegularExpressions;
-using YoutubePlaylist.Manager;
+using YoutubePlaylist.Extensions;
 using YoutubePlaylist.Helpers;
 using YoutubePlaylist.Interface;
+using YoutubePlaylist.Manager;
 using YoutubePlaylist.Model;
-using System.Diagnostics;
 
 namespace YoutubePlaylist;
 
-public class YoutubePlaylist
+public partial class YoutubePlaylist
 {
     #region Variables
     private readonly PlaylistManager _playlistManager;
@@ -18,21 +20,21 @@ public class YoutubePlaylist
     private readonly string _downloadPath;
     private readonly string _playlistBaseUrl;
     private const string SECOND_ATTEMPT = "Egyéb videók";
-    private List<Playlist> _playlists;
+    private readonly HttpClient _httpClient;
     #endregion
 
     public YoutubePlaylist()
     {
-        _dataAccess = Helper.ResolveInterface<IDataAccess>();
+        _dataAccess = DIContainer.Resolve<IDataAccess>();
         _playlistManager = new(_dataAccess);
         _downloadPath = Helper.GetConfigValue("DownloadPath");
         _downloadManager = new(_downloadPath);
-
+        _httpClient = new();
         _playlistBaseUrl = Helper.GetConfigValue("PlaylistBaseUrl");
     }
 
     [STAThread]
-    static async Task Main(string[] args)
+    static async Task Main()
     {
         if (!Helper.IsInternetAvailable())
         {
@@ -58,38 +60,35 @@ public class YoutubePlaylist
             List<string> downloadVideos = _playlistManager.GetPlaylistItems(downloadPlaylist.Id);
             List<string> downloadIDs = _playlistManager.GetPlaylistItems(downloadPlaylist.Id, true);
 
-            _playlists = playlistsResponse.Items.Where(x => x.Snippet.Title != DOWNLOAD).ToList();
+            List<Playlist> playlists = [.. playlistsResponse.Items.Where(x => x.Snippet.Title != DOWNLOAD)];
 
-            CheckForMissingVideosFirstAttempt(downloadVideos);
-            await CheckForMissingVideosSecondAttempt();
+            CheckForMissingVideosFirstAttempt(playlists, downloadVideos);
+            var affectedPlaylistIds = await CheckForMissingVideosSecondAttempt(playlists);
 
-            List<Deleted> deletedVideos = _dataAccess.GetDeleted();
+            List<Deleted> deletedVideos = _dataAccess.GetLatestDeleted();
             var index = deletedVideos.FindIndex(d => d.Playlist == SECOND_ATTEMPT);
             WriteOutResult(deletedVideos.Take(index));
             Console.WriteLine($"{SECOND_ATTEMPT}:");
             WriteOutResult(deletedVideos.Skip(index + 1));
 
-            OpenAffectedPlaylistsInBrowser(deletedVideos.Take(index));
+            OpenAffectedPlaylistsInBrowser(affectedPlaylistIds);
 
-            if (!downloadIDs.Any()) return;          
+            if (downloadIDs.Count == 0) return;          
             await DownloadVideos(downloadIDs, downloadVideos);
         }
-        catch (AggregateException ex)
-        {
-            foreach (var e in ex.InnerExceptions)
-            {
-                Console.WriteLine("Error: " + e.Message);
-            }
+        catch (Exception ex)
+        {           
+            Console.WriteLine("Error: " + ex.Message);  
         }
 
         Console.WriteLine("\nKész vagyunk Mester!");
         Console.ReadKey();
     }
 
-    private void CheckForMissingVideosFirstAttempt(List<string> downloadVideos)
+    private void CheckForMissingVideosFirstAttempt(List<Playlist> playlists, List<string> downloadVideos)
     {
         Console.WriteLine("Könyvtár karbantartása");
-        foreach (var playlist in _playlists)
+        foreach (var playlist in playlists)
         {
             var videos = _playlistManager.GetPlaylistItems(playlist.Id);
             if (videos.Count == 0) continue;
@@ -98,35 +97,47 @@ public class YoutubePlaylist
         }
     }
 
-    private async Task CheckForMissingVideosSecondAttempt()
+    private async Task<List<string>> CheckForMissingVideosSecondAttempt(List<Playlist> playlists)
     {
-        _dataAccess.InsertDeleted(SECOND_ATTEMPT, new List<string>() { "" });
+        _dataAccess.InsertDeleted(SECOND_ATTEMPT, [""]);
+        List<string> affectedPlaylistIds = [];
 
-        foreach (var playlist in _playlists)
+        foreach (var playlist in playlists)
         {
             string url = _playlistBaseUrl + playlist.Id;
-            
-            using (HttpClient httpClient = new HttpClient())
-            {
-                string html = await httpClient.GetStringAsync(url);
 
-                MatchCollection matches = Regex.Matches(html, "\"title\":{\"runs\":\\[{\"text\":\"(.*?)\"\\}");
-                var matchList = matches.Take(matches.Count - 7);
+            string html = await _httpClient.GetStringAsync(url);
 
-                List<string> videos = matchList
-                    .Select(x => Regex.Unescape(x.Groups[1].Value)).ToList();
-                List<string> allVideos = _dataAccess.GetPlaylistItems(playlist.Snippet.Title);
+            var match = Regexes.YtInitialData().Match(html);
+            if (!match.Success) continue;
 
-                List<string> missings = allVideos.Take(100).Except(videos).ToList();
+            using var jsonDoc = JsonDocument.Parse(match.Groups[1].Value);
+            var root = jsonDoc.RootElement;
 
-                if (missings.Count == 0) continue;
+            bool hasHiddenVideos = root
+                .Descendants()
+                .Any(e => e.ValueKind == JsonValueKind.String &&
+                          e.GetString() == "A rendelkezésre nem álló videók el vannak rejtve");
 
-                _dataAccess.InsertDeleted(playlist.Snippet.Title, missings);
-            }
+            if (hasHiddenVideos) affectedPlaylistIds.Add(playlist.Id); 
+
+            MatchCollection matches = Regexes.TitleRuns().Matches(html);
+            var matchList = matches.Take(matches.Count - 7);
+
+            List<string> videos = [.. matchList.Select(x => Regex.Unescape(x.Groups[1].Value))];
+            List<string> allVideos = _dataAccess.GetPlaylistItems(playlist.Snippet.Title);
+
+            List<string> missings = [.. allVideos.Take(100).Except(videos)];
+
+            if (missings.Count == 0) continue;
+
+            _dataAccess.InsertDeleted(playlist.Snippet.Title, missings);
         }
+
+        return affectedPlaylistIds;
     }
 
-    private void WriteOutResult(IEnumerable<Deleted> deletedVideos)
+    private static void WriteOutResult(IEnumerable<Deleted> deletedVideos)
     {
         foreach (var group in deletedVideos.GroupBy(d => d.Playlist))
         {
@@ -139,20 +150,13 @@ public class YoutubePlaylist
         }
     }
 
-    private void OpenAffectedPlaylistsInBrowser(IEnumerable<Deleted> deletedVideos)
-    {
-        var affectedListIds = _playlists
-            .Where(x => deletedVideos.Any(y => y.Playlist == x.Snippet.Title))
-            .Select(x => x.Id)
-            .ToList();
-
-        affectedListIds.ForEach(id =>
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = _playlistBaseUrl + id,
-                        UseShellExecute = true
-                    }));
-    }
+    private void OpenAffectedPlaylistsInBrowser(List<string> affectedPlaylistIds)
+        => affectedPlaylistIds.ForEach(id =>
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = _playlistBaseUrl + id,
+                    UseShellExecute = true
+                }));
 
 
     private async Task DownloadVideos(List<string> downloadIDs, List<string> titles)
@@ -163,21 +167,7 @@ public class YoutubePlaylist
 
         var downloadTasks = downloadIDs.Select(id => _downloadManager.DownloadWebmAudioAsync(baseUrl + id)).ToList();
 
-        var progressTask = Task.Run(() =>
-        {
-            while (!downloadTasks.All(t => t.IsCompleted))
-            {
-                Console.SetCursorPosition(0, Console.CursorTop);
-                Console.Write(new string(' ', Console.WindowWidth - 1));
-                Console.SetCursorPosition(0, Console.CursorTop); Thread.Sleep(300);
-                for (int i = 0; i < 6; i++)
-                {
-                    Console.Write(":");
-                    Thread.Sleep(100);
-                }
-                Thread.Sleep(600);
-            }
-        });
+        var progressTask = Task.Run(() => ConsoleManager.ShowProgressBarWhileTasksRunning(downloadTasks));
 
         await Task.WhenAll(downloadTasks);
         await progressTask;
@@ -185,7 +175,6 @@ public class YoutubePlaylist
         Console.WriteLine($"\nA letöltés elkészült Mester!");
         CheckForUnsuccesfulDownloads(titles, RenameFiles());
     }
-
 
     private IEnumerable<string> RenameFiles()
     {
@@ -207,12 +196,11 @@ public class YoutubePlaylist
         return files;
     }
 
-    private void CheckForUnsuccesfulDownloads(List<string> titles, IEnumerable<string> files)
+    private static void CheckForUnsuccesfulDownloads(List<string> titles, IEnumerable<string> files)
     {
-        var titleRegex = new Regex(@"[^a-zA-Z0-9 ]");
-        files = files.Select(x => titleRegex.Replace(x, ""));
+        files = files.Select(x => Regexes.FileTitle().Replace(x, ""));
 
-        List<string> unsuccesfulDownloads = titles.Where(title => !files.Contains(titleRegex.Replace(title, ""))).ToList();
+        List<string> unsuccesfulDownloads = [.. titles.Where(title => !files.Contains(Regexes.FileTitle().Replace(title, "")))];
 
         if (unsuccesfulDownloads.Count > 0)
         {

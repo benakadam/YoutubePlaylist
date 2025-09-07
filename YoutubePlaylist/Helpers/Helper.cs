@@ -18,24 +18,6 @@ public static class Helper
         return tableName.Replace(" ", "_");
     }
 
-    public static T ResolveInterface<T>()
-    {
-        string typeName = GetConfigValue(typeof(T).Name);
-
-        if (string.IsNullOrEmpty(typeName))
-            throw new InvalidOperationException($"{typeof(T).Name} is not configured in App.config.");
-
-        Type type = Type.GetType(typeName);
-
-        if (type is null)
-            throw new InvalidOperationException($"Could not find type: {typeName}");
-
-        if (!typeof(T).IsAssignableFrom(type))
-            throw new InvalidOperationException($"{typeName} does not implement {typeof(T).Name}");
-
-        return (T)Activator.CreateInstance(type);
-    }
-
     public static bool IsInternetAvailable()
     {
         try

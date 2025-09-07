@@ -1,15 +1,9 @@
-﻿using NReco.VideoConverter;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 namespace YoutubePlaylist.Manager;
-public class DownloadManager
+public class DownloadManager(string downloadPath)
 {
-    private readonly string _downloadPath;
     private bool _isUpdated = false;
-
-    private readonly FFMpegConverter _converter = new FFMpegConverter();
-
-    public DownloadManager(string downloadPath) => _downloadPath = downloadPath;
 
     public async Task DownloadWebmAudioAsync(string url)
     {
@@ -18,14 +12,14 @@ public class DownloadManager
 
         if (!_isUpdated)
         {
-            var updateProcess = InitProcess(exePath, "-U"); //Ez frissíti a letöltő programot ha nem működne
+            var updateProcess = InitProcess(exePath, "-U");
             updateProcess.Start();
             updateProcess.WaitForExit();
             _isUpdated = true;
         }   
 
         var process = InitProcess(exePath,
-            $" -f bestaudio --extract-audio --audio-format mp3 --audio-quality 0 {url} -o {_downloadPath}\\%(title)s.%(ext)s");
+            $" -f bestaudio --extract-audio --audio-format mp3 --audio-quality 0 {url} -o {downloadPath}\\%(title)s.%(ext)s");
 
         process.EnableRaisingEvents = true;
 
@@ -41,9 +35,9 @@ public class DownloadManager
     }
 
 
-    private Process InitProcess(string fileName, string args)
+    private static Process InitProcess(string fileName, string args)
     {
-        Process process = new Process();
+        Process process = new();
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.CreateNoWindow = true;
 

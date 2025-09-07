@@ -1,6 +1,7 @@
 ﻿namespace YoutubePlaylist.Model;
 public class Deleted
 {
-    public string Playlist { get; set; }
-    public string Title { get; set; }
+    public required string Playlist { get; set; }
+    public required string Title { get; set; }
+    public required DateTime DeletionDate { get; set; }
 }
