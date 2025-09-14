@@ -1,9 +1,12 @@
-﻿using System.Diagnostics;
+﻿using NReco.VideoConverter;
+using System.Diagnostics;
 
 namespace YoutubePlaylist.Manager;
 public class DownloadManager(string downloadPath)
 {
     private bool _isUpdated = false;
+
+    private readonly FFMpegConverter _converter = new();
 
     public async Task DownloadWebmAudioAsync(string url)
     {
@@ -12,43 +15,62 @@ public class DownloadManager(string downloadPath)
 
         if (!_isUpdated)
         {
-            var updateProcess = InitProcess(exePath, "-U");
-            updateProcess.Start();
-            updateProcess.WaitForExit();
+            await RunProcessAsync(exePath, "-U");
             _isUpdated = true;
-        }   
+        }
 
-        var process = InitProcess(exePath,
-            $" -f bestaudio --extract-audio --audio-format mp3 --audio-quality 0 {url} -o {downloadPath}\\%(title)s.%(ext)s");
+        string outputTemplate = Path.Combine(downloadPath, "%(title)s.%(ext)s");
+        string args = $"-f bestaudio --extract-audio --audio-format mp3 --audio-quality 0 " +
+                      $"\"{url}\" -o \"{outputTemplate}\"";
 
-        process.EnableRaisingEvents = true;
+        await RunProcessAsync(exePath, args);
 
-        var tcs = new TaskCompletionSource<bool>();
-        process.Exited += (sender, args) =>
+        // --- Biztonsági ellenőrzés ---
+        string? downloadedFile = Directory.GetFiles(downloadPath, "*.mp3")
+            .OrderByDescending(File.GetCreationTimeUtc)
+            .FirstOrDefault();
+
+        if (downloadedFile == null)
         {
-            tcs.SetResult(true);
+            // ha nem jött létre mp3 → keress webm-et és konvertáld
+            string? webmFile = Directory.GetFiles(downloadPath, "*.webm")
+                .OrderByDescending(File.GetCreationTimeUtc)
+                .FirstOrDefault();
+
+            if (webmFile != null)
+            {
+                string mp3File = Path.ChangeExtension(webmFile, ".mp3");
+                _converter.ConvertMedia(webmFile, mp3File, "mp3");
+                File.Delete(webmFile);
+            }
+        }
+    }
+
+    private static Task RunProcessAsync(string fileName, string args)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = args,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            },
+            EnableRaisingEvents = true
+        };
+
+        process.Exited += (s, e) =>
+        {
+            tcs.TrySetResult(true);
             process.Dispose();
         };
 
         process.Start();
-        await tcs.Task;
-    }
-
-
-    private static Process InitProcess(string fileName, string args)
-    {
-        Process process = new();
-        process.StartInfo.UseShellExecute = false;
-        process.StartInfo.CreateNoWindow = true;
-
-        process.StartInfo.FileName = fileName;
-        process.StartInfo.Arguments = args;
-
-        process.StartInfo.RedirectStandardOutput = true;
-        process.StartInfo.RedirectStandardError = true;
-        process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-        return process;
+        return tcs.Task;
     }
 }

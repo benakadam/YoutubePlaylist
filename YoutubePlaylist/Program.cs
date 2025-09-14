@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using YoutubePlaylist.Extensions;
 using YoutubePlaylist.Helpers;
 using YoutubePlaylist.Interface;
 using YoutubePlaylist.Manager;
@@ -20,7 +19,6 @@ public partial class YoutubePlaylist
     private readonly string _downloadPath;
     private readonly string _playlistBaseUrl;
     private const string SECOND_ATTEMPT = "Egyéb videók";
-    private readonly HttpClient _httpClient;
     #endregion
 
     public YoutubePlaylist()
@@ -29,7 +27,6 @@ public partial class YoutubePlaylist
         _playlistManager = new(_dataAccess);
         _downloadPath = Helper.GetConfigValue("DownloadPath");
         _downloadManager = new(_downloadPath);
-        _httpClient = new();
         _playlistBaseUrl = Helper.GetConfigValue("PlaylistBaseUrl");
     }
 
@@ -102,24 +99,17 @@ public partial class YoutubePlaylist
         _dataAccess.InsertDeleted(SECOND_ATTEMPT, [""]);
         List<string> affectedPlaylistIds = [];
 
+            
         foreach (var playlist in playlists)
         {
             string url = _playlistBaseUrl + playlist.Id;
+            using HttpClient httpClient = new();
+            string html = await httpClient.GetStringAsync(url);
 
-            string html = await _httpClient.GetStringAsync(url);
-
-            var match = Regexes.YtInitialData().Match(html);
-            if (!match.Success) continue;
-
-            using var jsonDoc = JsonDocument.Parse(match.Groups[1].Value);
-            var root = jsonDoc.RootElement;
-
-            bool hasHiddenVideos = root
-                .Descendants()
-                .Any(e => e.ValueKind == JsonValueKind.String &&
-                          e.GetString() == "A rendelkezésre nem álló videók el vannak rejtve");
-
-            if (hasHiddenVideos) affectedPlaylistIds.Add(playlist.Id); 
+            if (HasHiddenVideos(html))
+            {
+                affectedPlaylistIds.Add(playlist.Id);
+            }
 
             MatchCollection matches = Regexes.TitleRuns().Matches(html);
             var matchList = matches.Take(matches.Count - 7);
@@ -136,6 +126,39 @@ public partial class YoutubePlaylist
 
         return affectedPlaylistIds;
     }
+
+    private static bool HasHiddenVideos(string html)
+    {
+        var match = Regexes.YtInitialData().Match(html);
+        if (!match.Success)
+            return false;
+
+        using var doc = JsonDocument.Parse(match.Groups[1].Value);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("alerts", out var alerts))
+            return false;
+
+        foreach (var alert in alerts.EnumerateArray())
+        {
+            if (!alert.TryGetProperty("alertWithButtonRenderer", out var renderer))
+                continue;
+
+            if (!renderer.TryGetProperty("text", out var text))
+                continue;
+
+            if (!text.TryGetProperty("simpleText", out var simpleText))
+                continue;
+
+            string message = simpleText.GetString() ?? string.Empty;
+
+            if (message.Contains("rendelkezésre nem álló videó"))
+                return true;
+        }
+
+        return false;
+    }
+
 
     private static void WriteOutResult(IEnumerable<Deleted> deletedVideos)
     {

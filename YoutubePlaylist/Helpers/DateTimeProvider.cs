@@ -3,13 +3,14 @@
 namespace YoutubePlaylist.Helpers;
 public class DateTimeProvider : IDateTimeProvider
 {
+    private readonly DateTime _frozenNow;
+    public DateTimeProvider()
+    {
+        // Truncate to seconds
+        var now = DateTime.Now;
+        _frozenNow = now.AddTicks(-(now.Ticks % TimeSpan.TicksPerSecond));
+    }
+
     public DateTime Now
-        => new(
-            DateTime.Now.Year,
-            DateTime.Now.Month,
-            DateTime.Now.Day,
-            DateTime.Now.Hour,
-            DateTime.Now.Minute,
-            DateTime.Now.Second
-        );
+        => _frozenNow;
 }
