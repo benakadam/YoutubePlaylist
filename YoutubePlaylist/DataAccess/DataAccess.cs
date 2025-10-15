@@ -6,15 +6,8 @@ using YoutubePlaylist.Model;
 
 namespace YoutubePlaylist.DataAccess;
 
-public class DataAccess : IDataAccess
+public class DataAccess(IDateTimeProvider dateTimeProvider) : IDataAccess
 {
-    private readonly IDateTimeProvider _dateTimeProvider;
-
-    public DataAccess(IDateTimeProvider dateTimeProvider)
-    {
-        _dateTimeProvider = dateTimeProvider;
-    }
-
     public List<string> GetPlaylistItems(string playlistName)
     {
         playlistName = Helper.SanitizeTableName(playlistName);
@@ -69,7 +62,7 @@ public class DataAccess : IDataAccess
             {
                 Playlist = playlist,
                 PlaylistItem = item,
-                DeletedAt = _dateTimeProvider.Now,
+                DeletedAt = dateTimeProvider.Now,
             }).ToArray();
 
             connection.Execute($"INSERT INTO DELETED(Playlist, Title, DeletedAt) VALUES(@Playlist, @PlaylistItem, @DeletedAt)", parameters);
@@ -81,7 +74,7 @@ public class DataAccess : IDataAccess
         return DbHelper.ExecuteWithConnection(connection =>
         {
             return connection.Query<Deleted>($"SELECT * FROM DELETED WHERE DeletedAt = @DeletedAt",
-                new { DeletedAt = _dateTimeProvider.Now }).ToList();
+                new { DeletedAt = dateTimeProvider.Now }).ToList();
         });
     }
 

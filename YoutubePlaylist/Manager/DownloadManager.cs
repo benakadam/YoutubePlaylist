@@ -1,12 +1,15 @@
-﻿using NReco.VideoConverter;
+﻿using Microsoft.Extensions.Options;
+using NReco.VideoConverter;
 using System.Diagnostics;
+using YoutubePlaylist.Options;
 
 namespace YoutubePlaylist.Manager;
-public class DownloadManager(string downloadPath)
+public class DownloadManager(IOptions<DownloadManagerOptions> options)
 {
     private bool _isUpdated = false;
 
     private readonly FFMpegConverter _converter = new();
+    private readonly DownloadManagerOptions _options = options.Value;
 
     public async Task DownloadWebmAudioAsync(string url)
     {
@@ -19,21 +22,21 @@ public class DownloadManager(string downloadPath)
             _isUpdated = true;
         }
 
-        string outputTemplate = Path.Combine(downloadPath, "%(title)s.%(ext)s");
+        string outputTemplate = Path.Combine(_options.DownloadPath, "%(title)s.%(ext)s");
         string args = $"-f bestaudio --extract-audio --audio-format mp3 --audio-quality 0 " +
                       $"\"{url}\" -o \"{outputTemplate}\"";
 
         await RunProcessAsync(exePath, args);
 
         // --- Biztonsági ellenőrzés ---
-        string? downloadedFile = Directory.GetFiles(downloadPath, "*.mp3")
+        string? downloadedFile = Directory.GetFiles(_options.DownloadPath, "*.mp3")
             .OrderByDescending(File.GetCreationTimeUtc)
             .FirstOrDefault();
 
         if (downloadedFile == null)
         {
             // ha nem jött létre mp3 → keress webm-et és konvertáld
-            string? webmFile = Directory.GetFiles(downloadPath, "*.webm")
+            string? webmFile = Directory.GetFiles(_options.DownloadPath, "*.webm")
                 .OrderByDescending(File.GetCreationTimeUtc)
                 .FirstOrDefault();
 
