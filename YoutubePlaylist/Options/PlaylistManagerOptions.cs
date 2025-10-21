@@ -1,6 +1,6 @@
 using Google.Apis.YouTube.v3;
 
-namespace YoutubePlaylist.Options;
+namespace YoutubePlaylistManager.Cli.Options;
 
 public class PlaylistManagerOptions
 {

@@ -1,6 +1,6 @@
-﻿using YoutubePlaylist.Model;
+﻿using YoutubePlaylistManager.Cli.Model;
 
-namespace YoutubePlaylist.Interface;
+namespace YoutubePlaylistManager.Cli.Interface;
 public interface IDataAccess
 {
     public List<string> GetPlaylistItems(string playlistName);

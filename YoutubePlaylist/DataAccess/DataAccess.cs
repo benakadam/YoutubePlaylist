@@ -1,10 +1,10 @@
 ﻿using System.Data;
 using Dapper;
-using YoutubePlaylist.Helpers;
-using YoutubePlaylist.Interface;
-using YoutubePlaylist.Model;
+using YoutubePlaylistManager.Cli.Helpers;
+using YoutubePlaylistManager.Cli.Interface;
+using YoutubePlaylistManager.Cli.Model;
 
-namespace YoutubePlaylist.DataAccess;
+namespace YoutubePlaylistManager.Cli.DataAccess;
 
 public class DataAccess(IDateTimeProvider dateTimeProvider) : IDataAccess
 {

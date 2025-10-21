@@ -1,4 +1,4 @@
-﻿namespace YoutubePlaylist.Model;
+﻿namespace YoutubePlaylistManager.Cli.Model;
 public class Deleted
 {
     public required string Playlist { get; set; }

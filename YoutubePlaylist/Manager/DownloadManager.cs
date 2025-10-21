@@ -1,9 +1,9 @@
 ﻿using Microsoft.Extensions.Options;
 using NReco.VideoConverter;
 using System.Diagnostics;
-using YoutubePlaylist.Options;
+using YoutubePlaylistManager.Cli.Options;
 
-namespace YoutubePlaylist.Manager;
+namespace YoutubePlaylistManager.Cli.Manager;
 public class DownloadManager(IOptions<DownloadManagerOptions> options)
 {
     private bool _isUpdated = false;

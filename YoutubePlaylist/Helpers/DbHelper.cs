@@ -1,6 +1,6 @@
 ﻿using System.Data;
 
-namespace YoutubePlaylist.Helpers;
+namespace YoutubePlaylistManager.Cli.Helpers;
 public static class DbHelper
 {
     public static T ExecuteWithConnection<T>(Func<IDbConnection, T> query)

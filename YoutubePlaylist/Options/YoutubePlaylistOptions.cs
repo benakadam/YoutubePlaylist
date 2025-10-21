@@ -1,4 +1,4 @@
-namespace YoutubePlaylist.Options;
+namespace YoutubePlaylistManager.Cli.Options;
 
 public class YoutubePlaylistOptions
 {

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
-using YoutubePlaylist.DI;
+using YoutubePlaylistManager.Cli.DI;
 
-namespace YoutubePlaylist;
+namespace YoutubePlaylistManager.Cli;
 
 public static class Program
 {
@@ -11,7 +11,7 @@ public static class Program
         var services = new ServiceCollection();
         services.AddYoutubePlaylistServices();
         var provider = services.BuildServiceProvider();
-        var app = provider.GetRequiredService<YoutubePlaylist>();
+        var app = provider.GetRequiredService<PlaylistManagerService>();
         await app.StartProcess();
     }
 }

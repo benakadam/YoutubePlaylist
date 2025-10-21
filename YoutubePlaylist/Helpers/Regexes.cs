@@ -1,6 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 
-namespace YoutubePlaylist.Helpers;
+namespace YoutubePlaylistManager.Cli.Helpers;
 public static partial class Regexes
 {
     [GeneratedRegex(@"[^\p{L}\p{N} ]", RegexOptions.Compiled)]

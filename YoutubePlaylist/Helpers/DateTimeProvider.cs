@@ -1,6 +1,6 @@
-﻿using YoutubePlaylist.Interface;
+﻿using YoutubePlaylistManager.Cli.Interface;
 
-namespace YoutubePlaylist.Helpers;
+namespace YoutubePlaylistManager.Cli.Helpers;
 public class DateTimeProvider : IDateTimeProvider
 {
     private readonly DateTime _frozenNow;

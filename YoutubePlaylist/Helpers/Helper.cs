@@ -1,6 +1,6 @@
 ﻿using System.Configuration;
 using System.Net.NetworkInformation;
-namespace YoutubePlaylist.Helpers;
+namespace YoutubePlaylistManager.Cli.Helpers;
 
 public static class Helper
 {

@@ -1,19 +1,19 @@
 ﻿using Google.Apis.YouTube.v3.Data;
+using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using YoutubePlaylist.Helpers;
-using YoutubePlaylist.Interface;
-using YoutubePlaylist.Manager;
-using YoutubePlaylist.Model;
-using Microsoft.Extensions.Options;
-using YoutubePlaylist.Options;
+using YoutubePlaylistManager.Cli.Helpers;
+using YoutubePlaylistManager.Cli.Interface;
+using YoutubePlaylistManager.Cli.Manager;
+using YoutubePlaylistManager.Cli.Model;
+using YoutubePlaylistManager.Cli.Options;
 
-namespace YoutubePlaylist;
+namespace YoutubePlaylistManager.Cli;
 
-public partial class YoutubePlaylist(
+public partial class PlaylistManagerService(
     IDataAccess dataAccess,
-    PlaylistManager playlistManager,
+    YoutubeApiManager playlistManager,
     DownloadManager downloadManager,
     IOptions<YoutubePlaylistOptions> options)
 {
@@ -22,7 +22,6 @@ public partial class YoutubePlaylist(
     private readonly YoutubePlaylistOptions _options = options.Value;
     private const string DOWNLOAD = "Download";
     private const string SECOND_ATTEMPT = "Egyéb videók";
-
     #endregion
 
     public async Task StartProcess()
@@ -48,8 +47,9 @@ public partial class YoutubePlaylist(
 
             List<Playlist> playlists = [.. playlistsResponse.Items.Where(x => x.Snippet.Title != DOWNLOAD)];
 
-            CheckForMissingVideosFirstAttempt(playlists, downloadVideos);
-            var affectedPlaylistIds = await CheckForMissingVideosSecondAttempt(playlists);
+            Console.WriteLine("Könyvtár karbantartása");
+            CheckForMissingItemsWithApi(playlists, downloadVideos);
+            var affectedPlaylistIds = await CheckForMissingItemsWithHtml(playlists);
 
             List<Deleted> deletedVideos = dataAccess.GetLatestDeleted();
             var index = deletedVideos.FindIndex(d => d.Playlist == SECOND_ATTEMPT);
@@ -59,36 +59,48 @@ public partial class YoutubePlaylist(
 
             OpenAffectedPlaylistsInBrowser(affectedPlaylistIds);
 
-            if (downloadIDs.Count == 0) return;          
+            if (downloadIDs.Count == 0) return;
             await DownloadVideos(downloadIDs, downloadVideos);
         }
         catch (Exception ex)
-        {           
-            Console.WriteLine("Error: " + ex.Message);  
+        {
+            Console.WriteLine("Error: " + ex.Message);
         }
 
         Console.WriteLine("\nKész vagyunk Mester!");
         Console.ReadKey();
     }
 
-    private void CheckForMissingVideosFirstAttempt(List<Playlist> playlists, List<string> downloadVideos)
+    private void CheckForMissingItemsWithApi(List<Playlist> playlists, List<string> downloadVideos)
     {
-        Console.WriteLine("Könyvtár karbantartása");
         foreach (var playlist in playlists)
         {
-            var videos = playlistManager.GetPlaylistItems(playlist.Id);
-            if (videos.Count == 0) continue;
-            
-            playlistManager.CheckDiff(playlist.Snippet.Title, videos, downloadVideos);
+            var currentItems = playlistManager.GetPlaylistItems(playlist.Id);
+            if (currentItems.Count == 0) continue;
+
+            var playlistTitle = playlist.Snippet.Title;
+
+            dataAccess.CreateTableIfNotExist(playlistTitle);
+            List<string> previousItems = dataAccess.GetPlaylistItems(playlistTitle);
+
+            var diffTitles = previousItems.Except(currentItems).ToList();
+            diffTitles = [.. diffTitles.Except(downloadVideos)];
+
+            diffTitles.RemoveAll(x => x == "Deleted video");
+            if (diffTitles.Count != 0)
+                dataAccess.InsertDeleted(playlistTitle, diffTitles);
+
+            dataAccess.TruncateTable(playlistTitle);
+            dataAccess.InsertPlaylistItems(playlistTitle, currentItems);
         }
     }
 
-    private async Task<List<string>> CheckForMissingVideosSecondAttempt(List<Playlist> playlists)
+    private async Task<List<string>> CheckForMissingItemsWithHtml(List<Playlist> playlists)
     {
         dataAccess.InsertDeleted(SECOND_ATTEMPT, [""]);
         List<string> affectedPlaylistIds = [];
 
-            
+
         foreach (var playlist in playlists)
         {
             string url = _options.PlaylistBaseUrl + playlist.Id;
@@ -199,9 +211,9 @@ public partial class YoutubePlaylist(
 
             string destinationPath = Path.Combine(_options.DownloadPath, newFileName + ".mp3");
             if (File.Exists(destinationPath)) continue;
-            
+
             File.Move(Path.Combine(_options.DownloadPath, file + ".mp3"), destinationPath);
-            dataAccess.InsertPlaylistItem("ALLSONGS", newFileName);           
+            dataAccess.InsertPlaylistItem("ALLSONGS", newFileName);
         }
 
         return files;
@@ -216,7 +228,7 @@ public partial class YoutubePlaylist(
         if (unsuccesfulDownloads.Count > 0)
         {
             Console.WriteLine("\nA következő számok letöltése nem sikerült:");
-            unsuccesfulDownloads.ForEach(x =>  Console.WriteLine(x));
+            unsuccesfulDownloads.ForEach(x => Console.WriteLine(x));
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace YoutubePlaylist.Manager;
+﻿namespace YoutubePlaylistManager.Cli.Manager;
 public class ConsoleManager
 {
 

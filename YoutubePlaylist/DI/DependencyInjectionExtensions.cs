@@ -1,12 +1,12 @@
 using Google.Apis.Services;
 using Google.Apis.YouTube.v3;
 using Microsoft.Extensions.DependencyInjection;
-using YoutubePlaylist.Helpers;
-using YoutubePlaylist.Interface;
-using YoutubePlaylist.Manager;
-using YoutubePlaylist.Options;
+using YoutubePlaylistManager.Cli.Helpers;
+using YoutubePlaylistManager.Cli.Interface;
+using YoutubePlaylistManager.Cli.Manager;
+using YoutubePlaylistManager.Cli.Options;
 
-namespace YoutubePlaylist.DI;
+namespace YoutubePlaylistManager.Cli.DI;
 
 public static class DependencyInjectionExtensions
 {
@@ -43,9 +43,9 @@ public static class DependencyInjectionExtensions
 
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
         services.AddSingleton<IDataAccess, DataAccess.DataAccess>();
-        services.AddSingleton<PlaylistManager>();
+        services.AddSingleton<YoutubeApiManager>();
         services.AddSingleton<DownloadManager>();
-        services.AddSingleton<YoutubePlaylist>();
+        services.AddSingleton<PlaylistManagerService>();
         return services;
     }
 }
